@@ -12,6 +12,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write  # Required for GitHub Pages deployment
+      pages: write     # Required for GitHub Pages deployment
+      id-token: write  # Required for GitHub Pages deployment
 
     steps:
       - name: Checkout repository
@@ -54,14 +56,19 @@ jobs:
         run: python scripts/generate_index.py
 
       - name: Create .nojekyll file
-        run: touch docs/.nojekyll
+        run: |
+          touch docs/.nojekyll
+          echo "Created .nojekyll file"
+          ls -la docs/
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v3
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v2
+        with:
+          path: './docs'
 
       - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./docs
-          force_orphan: true
-          user_name: 'github-actions[bot]'
-          user_email: 'github-actions[bot]@users.noreply.github.com'
-          commit_message: 'Deploy to GitHub Pages'
+        id: deployment
+        uses: actions/deploy-pages@v2
