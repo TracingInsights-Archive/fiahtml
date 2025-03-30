@@ -8,7 +8,6 @@ import re
 import subprocess
 import shutil
 import time
-import xml.etree.ElementTree as ET
 
 # Configure logging
 logging.basicConfig(
@@ -27,8 +26,6 @@ PROCESSED_FILE = "processed_pdfs.json"
 OUTPUT_DIR = "docs"
 HTML_DIR = os.path.join(OUTPUT_DIR, "html")
 PDF_DIR = os.path.join(OUTPUT_DIR, "pdf")
-GROBID_DIR = "grobid"
-GROBID_PORT = 8070
 
 def ensure_directories():
     """Ensure all necessary directories exist."""
@@ -89,189 +86,6 @@ def download_pdf(url, filename):
     except Exception as e:
         logger.error(f"Error downloading PDF {url}: {e}")
         return False
-
-def setup_grobid():
-    """Setup GROBID if not already installed."""
-    if not os.path.exists(GROBID_DIR):
-        logger.info("Setting up GROBID...")
-        # Clone GROBID repository
-        subprocess.run(["git", "clone", "https://github.com/kermitt2/grobid.git", GROBID_DIR], check=True)
-        
-        # Change to GROBID directory
-        os.chdir(GROBID_DIR)
-        
-        # Build GROBID (requires Gradle)
-        subprocess.run(["./gradlew", "clean", "install"], check=True)
-        
-        # Return to original directory
-        os.chdir("..")
-        
-        logger.info("GROBID setup complete")
-
-def start_grobid_service():
-    """Start the GROBID service."""
-    logger.info("Starting GROBID service...")
-    
-    # Change to GROBID directory
-    os.chdir(GROBID_DIR)
-    
-    # Start GROBID service
-    process = subprocess.Popen(["./gradlew", "run"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    
-    # Return to original directory
-    os.chdir("..")
-    
-    # Wait for service to start
-    time.sleep(30)
-    
-    # Check if service is running
-    try:
-        response = requests.get(f"http://localhost:{GROBID_PORT}")
-        if response.status_code == 200:
-            logger.info("GROBID service started successfully")
-            return process
-        else:
-            logger.error(f"GROBID service returned status code {response.status_code}")
-            return None
-    except Exception as e:
-        logger.error(f"Error checking GROBID service: {e}")
-        return None
-
-def stop_grobid_service(process):
-    """Stop the GROBID service."""
-    if process:
-        logger.info("Stopping GROBID service...")
-        process.terminate()
-        process.wait()
-        logger.info("GROBID service stopped")
-def convert_pdf_to_html_fallback(pdf_path, html_path):
-    """Fallback method to convert PDF to HTML using pdfminer.six."""
-    try:
-        logger.info(f"Using fallback PDF conversion method for {pdf_path}")
-        
-        # Install pdfminer.six if not already installed
-        try:
-            import pdfminer
-        except ImportError:
-            subprocess.run(["pip", "install", "pdfminer.six"], check=True)
-        
-        from pdfminer.high_level import extract_text_to_fp
-        from pdfminer.layout import LAParams
-        from io import StringIO
-        
-        # Extract text from PDF
-        output = StringIO()
-        with open(pdf_path, 'rb') as pdf_file:
-            extract_text_to_fp(pdf_file, output, laparams=LAParams(), output_type='html', codec=None)
-        
-        html_text = output.getvalue()
-        
-        # Enhance the HTML with better styling
-        pdf_filename = os.path.basename(pdf_path)
-        enhanced_html = f"""
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>{pdf_filename}</title>
-            <style>
-                body {{
-                    font-family: Arial, sans-serif;
-                    line-height: 1.6;
-                    max-width: 1000px;
-                    margin: 0 auto;
-                    padding: 20px;
-                }}
-                h1 {{
-                    color: #333;
-                    text-align: center;
-                }}
-                table {{
-                    width: 100%;
-                    border-collapse: collapse;
-                    margin: 20px 0;
-                }}
-                th, td {{
-                    border: 1px solid #ddd;
-                    padding: 8px;
-                    text-align: left;
-                }}
-                th {{
-                    background-color: #f2f2f2;
-                }}
-                pre {{
-                    white-space: pre-wrap;
-                    font-family: monospace;
-                    background-color: #f5f5f5;
-                    padding: 10px;
-                    border-radius: 5px;
-                    overflow-x: auto;
-                }}
-                .document-title {{
-                    font-size: 24px;
-                    font-weight: bold;
-                    margin-bottom: 20px;
-                    text-align: center;
-                }}
-                .race-info {{
-                    margin-bottom: 20px;
-                }}
-            </style>
-        </head>
-        <body>
-            <div class="document-title">{pdf_filename.replace('_', ' ').replace('.pdf', '').title()}</div>
-            <div class="content">
-                {html_text}
-            </div>
-        </body>
-        </html>
-        """
-        
-        # Write enhanced HTML to file
-        with open(html_path, 'w', encoding='utf-8') as f:
-            f.write(enhanced_html)
-        
-        return True
-    except Exception as e:
-        logger.error(f"Error in fallback PDF conversion: {e}")
-        
-        # Last resort: create a simple HTML with a link to the PDF
-        simple_html = f"""
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>{os.path.basename(pdf_path)}</title>
-            <style>
-                body {{
-                    font-family: Arial, sans-serif;
-                    text-align: center;
-                    padding: 50px;
-                }}
-                .pdf-container {{
-                    margin: 20px auto;
-                    max-width: 800px;
-                }}
-            </style>
-        </head>
-        <body>
-            <h1>{os.path.basename(pdf_path).replace('_', ' ').replace('.pdf', '').title()}</h1>
-            <p>The PDF could not be converted to HTML. You can view the original PDF below:</p>
-            <div class="pdf-container">
-                <iframe src="../pdf/{os.path.basename(pdf_path)}" width="100%" height="600px"></iframe>
-            </div>
-            <p><a href="../pdf/{os.path.basename(pdf_path)}" target="_blank">Open PDF in new tab</a></p>
-        </body>
-        </html>
-        """
-        
-        with open(html_path, 'w', encoding='utf-8') as f:
-            f.write(simple_html)
-        
-        return True
-
 
 def convert_pdf_to_html(pdf_path, html_path):
     """Convert a PDF file to HTML using PyPDF2."""
@@ -436,88 +250,6 @@ def convert_pdf_to_html(pdf_path, html_path):
         
         return True
 
-def tei_to_html(tei_xml, pdf_name):
-    """Convert TEI XML to HTML."""
-    try:
-        # Parse XML
-        root = ET.fromstring(tei_xml)
-        
-        # Extract title
-        title_elem = root.find(".//titleStmt/title")
-        title = title_elem.text if title_elem is not None else pdf_name
-        
-        # Extract abstract
-        abstract_elem = root.find(".//abstract")
-        abstract = ""
-        if abstract_elem is not None:
-            abstract = ET.tostring(abstract_elem, encoding='unicode', method='text')
-        
-        # Extract body text
-        body_elem = root.find(".//body")
-        body_text = ""
-        if body_elem is not None:
-            body_text = ET.tostring(body_elem, encoding='unicode', method='text')
-        
-        # Create HTML
-        html = f"""
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>{title}</title>
-            <style>
-                body {{
-                    font-family: Arial, sans-serif;
-                    line-height: 1.6;
-                    max-width: 800px;
-                    margin: 0 auto;
-                    padding: 20px;
-                }}
-                h1 {{
-                    color: #333;
-                    text-align: center;
-                }}
-                .abstract {{
-                    font-style: italic;
-                    margin-bottom: 20px;
-                    padding: 10px;
-                    background-color: #f5f5f5;
-                }}
-                .content {{
-                    text-align: justify;
-                }}
-            </style>
-        </head>
-        <body>
-            <h1>{title}</h1>
-            <div class="abstract">
-                <strong>Abstract:</strong> {abstract}
-            </div>
-            <div class="content">
-                {body_text}
-            </div>
-        </body>
-        </html>
-        """
-        
-        return html
-    except Exception as e:
-        logger.error(f"Error converting TEI to HTML: {e}")
-        return f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Error Processing {pdf_name}</title>
-        </head>
-        <body>
-            <h1>Error Processing Document</h1>
-            <p>There was an error processing this document with GROBID.</p>
-            <p>Error: {str(e)}</p>
-        </body>
-        </html>
-        """
-
 def sanitize_filename(filename):
     """Sanitize a filename to be safe for file systems."""
     # Replace any non-alphanumeric characters with underscores
@@ -536,19 +268,27 @@ def update_index_html(processed_pdfs):
         <title>FIA Formula One Documents</title>
         <style>
             body {
-                font-family: Arial, sans-serif;
+                font-family: 'Arial', sans-serif;
                 max-width: 1200px;
                 margin: 0 auto;
                 padding: 20px;
+                color: #333;
             }
             h1 {
-                color: #333;
+                color: #e10600;
                 text-align: center;
+                border-bottom: 2px solid #e10600;
+                padding-bottom: 10px;
+            }
+            p.description {
+                text-align: center;
+                margin-bottom: 30px;
             }
             table {
                 width: 100%;
                 border-collapse: collapse;
                 margin-top: 20px;
+                box-shadow: 0 2px 3px rgba(0,0,0,0.1);
             }
             th, td {
                 padding: 12px 15px;
@@ -569,17 +309,37 @@ def update_index_html(processed_pdfs):
             a:hover {
                 text-decoration: underline;
             }
+            .button {
+                display: inline-block;
+                padding: 6px 12px;
+                background-color: #e10600;
+                color: white;
+                border-radius: 4px;
+                text-decoration: none;
+            }
+            .button:hover {
+                background-color: #b30500;
+                text-decoration: none;
+            }
             .last-updated {
                 text-align: center;
-                margin-top: 20px;
+                margin-top: 30px;
                 font-style: italic;
                 color: #666;
+            }
+            footer {
+                margin-top: 40px;
+                text-align: center;
+                font-size: 0.8em;
+                color: #666;
+                border-top: 1px solid #ddd;
+                padding-top: 20px;
             }
         </style>
     </head>
     <body>
-        <h1>FIA Formula One Documents</h1>
-        <p>This page contains converted FIA Formula One documents for easier viewing.</p>
+        <h1>FIA Formula One Documents Archive</h1>
+        <p class="description">This page contains FIA Formula One documents converted to HTML for easier viewing.</p>
         
         <table>
             <thead>
@@ -604,8 +364,8 @@ def update_index_html(processed_pdfs):
                 <tr>
                     <td>{pdf_info['title']}</td>
                     <td>{pdf_info['date']}</td>
-                    <td><a href="html/{html_filename}" target="_blank">View HTML</a></td>
-                    <td><a href="pdf/{pdf_filename}" target="_blank">Download PDF</a></td>
+                    <td><a href="html/{html_filename}" target="_blank" class="button">View HTML</a></td>
+                    <td><a href="pdf/{pdf_filename}" target="_blank" class="button">Download PDF</a></td>
                 </tr>
         """
     
@@ -616,6 +376,10 @@ def update_index_html(processed_pdfs):
         <div class="last-updated">
             Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         </div>
+        
+        <footer>
+            <p>This is an unofficial archive of FIA Formula One documents. All documents are sourced from the official FIA website.</p>
+        </footer>
     </body>
     </html>
     """
@@ -631,14 +395,6 @@ def main():
     
     ensure_directories()
     processed_pdfs = load_processed_pdfs()
-    
-    # Setup and start GROBID
-    setup_grobid()
-    grobid_process = start_grobid_service()
-    
-    if not grobid_process:
-        logger.error("Failed to start GROBID service. Exiting.")
-        return
     
     try:
         pdf_links = get_pdf_links()
@@ -669,8 +425,8 @@ def main():
             if download_pdf(url, pdf_path):
                 logger.info(f"Downloaded PDF to {pdf_path}")
                 
-                # Convert to HTML using GROBID
-                if convert_pdf_to_html_with_grobid(pdf_path, html_path):
+                # Convert to HTML
+                if convert_pdf_to_html(pdf_path, html_path):
                     logger.info(f"Converted PDF to HTML: {html_path}")
                     
                     # Record as processed
@@ -696,9 +452,8 @@ def main():
         
         logger.info(f"Processed {new_pdfs} new PDFs")
     
-    finally:
-        # Stop GROBID service
-        stop_grobid_service(grobid_process)
+    except Exception as e:
+        logger.error(f"Error in main function: {e}")
 
 if __name__ == "__main__":
     main()
