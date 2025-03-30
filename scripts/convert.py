@@ -219,7 +219,6 @@ def convert_pdfs():
 
 def create_index_page(converted_pdfs, output_dir):
     """Create an index.html page that lists all converted PDFs"""
-    # Same implementation as before
     index_path = os.path.join(output_dir, "index.html")
     
     # Simple HTML template for the index page
@@ -230,13 +229,13 @@ def create_index_page(converted_pdfs, output_dir):
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FIA Documents</title>
     <style>
-        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
-        h1 { color: #333; }
-        ul { list-style-type: none; padding: 0; }
-        li { margin-bottom: 10px; padding: 10px; border-bottom: 1px solid #eee; }
-        a { color: #0066cc; text-decoration: none; }
-        a:hover { text-decoration: underline; }
-        .date { color: #666; font-size: 0.8em; }
+        body {{ font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }}
+        h1 {{ color: #333; }}
+        ul {{ list-style-type: none; padding: 0; }}
+        li {{ margin-bottom: 10px; padding: 10px; border-bottom: 1px solid #eee; }}
+        a {{ color: #0066cc; text-decoration: none; }}
+        a:hover {{ text-decoration: underline; }}
+        .date {{ color: #666; font-size: 0.8em; }}
     </style>
 </head>
 <body>
