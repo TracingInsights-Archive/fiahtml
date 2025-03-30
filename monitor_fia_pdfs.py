@@ -273,29 +273,109 @@ def convert_pdf_to_html_fallback(pdf_path, html_path):
         return True
 
 
-def convert_pdf_to_html_with_grobid(pdf_path, html_path):
-    """Convert a PDF file to HTML using GROBID."""
+def convert_pdf_to_html(pdf_path, html_path):
+    """Convert a PDF file to HTML using PyPDF2."""
     try:
-        # Process PDF with GROBID
-        url = f"http://localhost:{GROBID_PORT}/api/processFulltextDocument"
+        # Install PyPDF2 if not already installed
+        try:
+            import PyPDF2
+        except ImportError:
+            subprocess.run(["pip", "install", "PyPDF2"], check=True)
+        
+        import PyPDF2
+        
+        # Extract text from PDF
+        pdf_text = ""
         with open(pdf_path, 'rb') as pdf_file:
-            response = requests.post(url, files={'input': pdf_file})
+            pdf_reader = PyPDF2.PdfReader(pdf_file)
+            for page_num in range(len(pdf_reader.pages)):
+                page = pdf_reader.pages[page_num]
+                pdf_text += page.extract_text() + "\n\n"
         
-        if response.status_code != 200:
-            logger.error(f"GROBID processing failed with status code {response.status_code}")
-            # Fall back to direct PDF rendering if GROBID fails
-            return convert_pdf_to_html_fallback(pdf_path, html_path)
+        # Get filename for title
+        pdf_filename = os.path.basename(pdf_path)
+        title = pdf_filename.replace('_', ' ').replace('.pdf', '').title()
         
-        # Parse the TEI XML response
-        tei_xml = response.text
-        
-        # Convert TEI XML to HTML
-        html_content = tei_to_html(tei_xml, os.path.basename(pdf_path))
-        
-        # Check if the conversion produced meaningful content
-        if "Error Processing Document" in html_content or len(html_content.strip()) < 500:
-            logger.warning(f"GROBID produced insufficient content, using fallback method for {pdf_path}")
-            return convert_pdf_to_html_fallback(pdf_path, html_path)
+        # Create HTML with the extracted text
+        html_content = f"""
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>{title}</title>
+            <style>
+                body {{
+                    font-family: 'Arial', sans-serif;
+                    line-height: 1.6;
+                    max-width: 1000px;
+                    margin: 0 auto;
+                    padding: 20px;
+                    color: #333;
+                }}
+                h1 {{
+                    color: #e10600;
+                    text-align: center;
+                    border-bottom: 2px solid #e10600;
+                    padding-bottom: 10px;
+                    margin-bottom: 30px;
+                }}
+                .pdf-content {{
+                    white-space: pre-wrap;
+                    font-family: monospace;
+                    background-color: #f9f9f9;
+                    padding: 20px;
+                    border-radius: 5px;
+                    border: 1px solid #ddd;
+                    overflow-x: auto;
+                }}
+                .pdf-viewer {{
+                    margin: 30px 0;
+                    text-align: center;
+                }}
+                .pdf-link {{
+                    display: inline-block;
+                    margin: 20px 0;
+                    padding: 10px 20px;
+                    background-color: #e10600;
+                    color: white;
+                    text-decoration: none;
+                    border-radius: 5px;
+                    font-weight: bold;
+                }}
+                .pdf-link:hover {{
+                    background-color: #b30500;
+                }}
+                footer {{
+                    margin-top: 40px;
+                    text-align: center;
+                    font-size: 0.8em;
+                    color: #666;
+                }}
+            </style>
+        </head>
+        <body>
+            <h1>{title}</h1>
+            
+            <div class="pdf-content">
+                {pdf_text}
+            </div>
+            
+            <div class="pdf-viewer">
+                <h2>Original PDF Document</h2>
+                <iframe src="../pdf/{pdf_filename}" width="100%" height="600px"></iframe>
+            </div>
+            
+            <div style="text-align: center;">
+                <a class="pdf-link" href="../pdf/{pdf_filename}" target="_blank">Open PDF in New Tab</a>
+            </div>
+            
+            <footer>
+                <p>Converted from PDF to HTML for easier viewing. Original document from FIA.com</p>
+            </footer>
+        </body>
+        </html>
+        """
         
         # Write HTML to file
         with open(html_path, 'w', encoding='utf-8') as f:
@@ -303,8 +383,58 @@ def convert_pdf_to_html_with_grobid(pdf_path, html_path):
         
         return True
     except Exception as e:
-        logger.error(f"Error converting PDF to HTML with GROBID: {e}")
-        return convert_pdf_to_html_fallback(pdf_path, html_path)
+        logger.error(f"Error converting PDF to HTML: {e}")
+        
+        # Create a simple HTML with embedded PDF viewer as fallback
+        simple_html = f"""
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>{os.path.basename(pdf_path)}</title>
+            <style>
+                body {{
+                    font-family: 'Arial', sans-serif;
+                    text-align: center;
+                    padding: 20px;
+                    max-width: 1000px;
+                    margin: 0 auto;
+                }}
+                h1 {{
+                    color: #e10600;
+                }}
+                .pdf-container {{
+                    margin: 20px auto;
+                    border: 1px solid #ddd;
+                    border-radius: 5px;
+                }}
+                .pdf-link {{
+                    display: inline-block;
+                    margin: 20px 0;
+                    padding: 10px 20px;
+                    background-color: #e10600;
+                    color: white;
+                    text-decoration: none;
+                    border-radius: 5px;
+                    font-weight: bold;
+                }}
+            </style>
+        </head>
+        <body>
+            <h1>{os.path.basename(pdf_path).replace('_', ' ').replace('.pdf', '').title()}</h1>
+            <div class="pdf-container">
+                <iframe src="../pdf/{os.path.basename(pdf_path)}" width="100%" height="600px"></iframe>
+            </div>
+            <p><a class="pdf-link" href="../pdf/{os.path.basename(pdf_path)}" target="_blank">Open PDF in new tab</a></p>
+        </body>
+        </html>
+        """
+        
+        with open(html_path, 'w', encoding='utf-8') as f:
+            f.write(simple_html)
+        
+        return True
 
 def tei_to_html(tei_xml, pdf_name):
     """Convert TEI XML to HTML."""

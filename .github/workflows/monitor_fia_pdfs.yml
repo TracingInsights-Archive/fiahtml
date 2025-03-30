@@ -28,7 +28,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install requests beautifulsoup4 pdfminer.six
+        pip install requests beautifulsoup4 PyPDF2
         
     - name: Install Java
       uses: actions/setup-java@v2
