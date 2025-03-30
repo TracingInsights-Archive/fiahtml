@@ -305,7 +305,7 @@ def create_root_index(output_dir):
     # Sort by date (newest first)
     html_files.sort(key=lambda x: x['date'], reverse=True)
 
-    # HTML template with improved styling
+    # HTML template with improved styling - note the double curly braces for CSS
     html_content = """<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -313,75 +313,75 @@ def create_root_index(output_dir):
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FIA Documents Archive</title>
     <style>
-        body {
+        body {{
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             max-width: 1000px;
             margin: 0 auto;
             padding: 20px;
             background-color: #f5f5f5;
             color: #333;
-        }
-        header {
+        }}
+        header {{
             background-color: #e10600;
             color: white;
             padding: 20px;
             border-radius: 5px;
             margin-bottom: 20px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-        h1 {
+        }}
+        h1 {{
             margin: 0;
             font-size: 2em;
-        }
-        .last-updated {
+        }}
+        .last-updated {{
             margin-top: 10px;
             font-size: 0.9em;
             opacity: 0.8;
-        }
-        .document-list {
+        }}
+        .document-list {{
             list-style-type: none;
             padding: 0;
-        }
-        .document-item {
+        }}
+        .document-item {{
             background-color: white;
             margin-bottom: 15px;
             padding: 15px;
             border-radius: 5px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.05);
             transition: transform 0.2s, box-shadow 0.2s;
-        }
-        .document-item:hover {
+        }}
+        .document-item:hover {{
             transform: translateY(-2px);
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-        }
-        .document-link {
+        }}
+        .document-link {{
             color: #0066cc;
             text-decoration: none;
             font-weight: 500;
             font-size: 1.1em;
             display: block;
             margin-bottom: 5px;
-        }
-        .document-link:hover {
+        }}
+        .document-link:hover {{
             text-decoration: underline;
-        }
-        .document-date {
+        }}
+        .document-date {{
             color: #666;
             font-size: 0.9em;
-        }
-        .no-documents {
+        }}
+        .no-documents {{
             background-color: white;
             padding: 20px;
             border-radius: 5px;
             text-align: center;
             color: #666;
-        }
-        footer {
+        }}
+        footer {{
             margin-top: 30px;
             text-align: center;
             font-size: 0.9em;
             color: #666;
-        }
+        }}
     </style>
 </head>
 <body>
