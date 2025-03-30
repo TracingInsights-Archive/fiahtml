@@ -30,6 +30,10 @@ jobs:
         python -m pip install --upgrade pip
         pip install requests beautifulsoup4 PyPDF2
         
+        # Install pdf2htmlEX (Ubuntu)
+        sudo apt-get update
+        sudo apt-get install -y pdf2htmlex
+        
     - name: Install Java
       uses: actions/setup-java@v2
       with:

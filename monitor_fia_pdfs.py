@@ -88,17 +88,51 @@ def download_pdf(url, filename):
         return False
 
 def convert_pdf_to_html(pdf_path, html_path):
-    """Convert a PDF file to HTML using PyPDF2."""
+    """Convert a PDF file to HTML preserving styling and images."""
     try:
-        # Install PyPDF2 if not already installed
+        # First try using pdf2htmlEX if available
         try:
-            import PyPDF2
-        except ImportError:
-            subprocess.run(["pip", "install", "PyPDF2"], check=True)
+            # Check if pdf2htmlEX is installed
+            result = subprocess.run(["pdf2htmlEX", "--version"], 
+                                   stdout=subprocess.PIPE, 
+                                   stderr=subprocess.PIPE)
+            
+            # If we get here, pdf2htmlEX is installed
+            logger.info(f"Using pdf2htmlEX to convert {pdf_path}")
+            
+            # Create a temporary directory for the output
+            temp_dir = os.path.join(os.path.dirname(html_path), "temp_" + os.path.basename(html_path).replace(".html", ""))
+            os.makedirs(temp_dir, exist_ok=True)
+            
+            # Run pdf2htmlEX
+            output_filename = os.path.basename(html_path)
+            subprocess.run([
+                "pdf2htmlEX",
+                "--dest-dir", temp_dir,
+                "--zoom", "1.3",
+                "--fit-width", "1000",
+                "--embed", "cfijo",  # Embed: css, fonts, images, js, outline
+                "--process-outline", "0",
+                pdf_path,
+                output_filename
+            ], check=True)
+            
+            # Move the generated HTML file to the target location
+            temp_html_path = os.path.join(temp_dir, output_filename)
+            if os.path.exists(temp_html_path):
+                shutil.move(temp_html_path, html_path)
+                
+                # Clean up temporary directory
+                shutil.rmtree(temp_dir, ignore_errors=True)
+                
+                return True
+        except (subprocess.SubprocessError, FileNotFoundError) as e:
+            logger.warning(f"pdf2htmlEX not available or failed: {e}. Falling back to PyPDF2 + PDF.js")
         
+        # Fallback to PyPDF2 for text extraction + PDF.js for rendering
         import PyPDF2
         
-        # Extract text from PDF
+        # Extract text for searchability
         pdf_text = ""
         with open(pdf_path, 'rb') as pdf_file:
             pdf_reader = PyPDF2.PdfReader(pdf_file)
@@ -110,7 +144,7 @@ def convert_pdf_to_html(pdf_path, html_path):
         pdf_filename = os.path.basename(pdf_path)
         title = pdf_filename.replace('_', ' ').replace('.pdf', '').title()
         
-        # Create HTML with the extracted text
+        # Create HTML with PDF.js viewer
         html_content = f"""
         <!DOCTYPE html>
         <html lang="en">
@@ -122,71 +156,114 @@ def convert_pdf_to_html(pdf_path, html_path):
                 body {{
                     font-family: 'Arial', sans-serif;
                     line-height: 1.6;
-                    max-width: 1000px;
-                    margin: 0 auto;
-                    padding: 20px;
+                    margin: 0;
+                    padding: 0;
                     color: #333;
                 }}
-                h1 {{
-                    color: #e10600;
-                    text-align: center;
-                    border-bottom: 2px solid #e10600;
-                    padding-bottom: 10px;
-                    margin-bottom: 30px;
-                }}
-                .pdf-content {{
-                    white-space: pre-wrap;
-                    font-family: monospace;
-                    background-color: #f9f9f9;
-                    padding: 20px;
-                    border-radius: 5px;
-                    border: 1px solid #ddd;
-                    overflow-x: auto;
-                }}
-                .pdf-viewer {{
-                    margin: 30px 0;
-                    text-align: center;
-                }}
-                .pdf-link {{
-                    display: inline-block;
-                    margin: 20px 0;
-                    padding: 10px 20px;
+                .header {{
                     background-color: #e10600;
                     color: white;
-                    text-decoration: none;
-                    border-radius: 5px;
-                    font-weight: bold;
+                    padding: 20px;
+                    text-align: center;
                 }}
-                .pdf-link:hover {{
-                    background-color: #b30500;
+                h1 {{
+                    margin: 0;
+                }}
+                .container {{
+                    max-width: 1200px;
+                    margin: 0 auto;
+                    padding: 20px;
+                }}
+                .pdf-viewer {{
+                    width: 100%;
+                    height: 800px;
+                    border: 1px solid #ddd;
+                    margin: 20px 0;
+                }}
+                .text-content {{
+                    display: none;
+                }}
+                .tabs {{
+                    display: flex;
+                    margin-bottom: 20px;
+                }}
+                .tab {{
+                    padding: 10px 20px;
+                    background-color: #f2f2f2;
+                    cursor: pointer;
+                    border: 1px solid #ddd;
+                    border-bottom: none;
+                    margin-right: 5px;
+                }}
+                .tab.active {{
+                    background-color: #e10600;
+                    color: white;
+                }}
+                .tab-content {{
+                    display: none;
+                }}
+                .tab-content.active {{
+                    display: block;
                 }}
                 footer {{
                     margin-top: 40px;
                     text-align: center;
                     font-size: 0.8em;
                     color: #666;
+                    padding: 20px;
+                    background-color: #f5f5f5;
                 }}
             </style>
         </head>
         <body>
-            <h1>{title}</h1>
-            
-            <div class="pdf-content">
-                {pdf_text}
+            <div class="header">
+                <h1>{title}</h1>
             </div>
             
-            <div class="pdf-viewer">
-                <h2>Original PDF Document</h2>
-                <iframe src="../pdf/{pdf_filename}" width="100%" height="600px"></iframe>
-            </div>
-            
-            <div style="text-align: center;">
-                <a class="pdf-link" href="../pdf/{pdf_filename}" target="_blank">Open PDF in New Tab</a>
+            <div class="container">
+                <div class="tabs">
+                    <div class="tab active" onclick="switchTab('viewer')">PDF Viewer</div>
+                    <div class="tab" onclick="switchTab('text')">Extracted Text</div>
+                </div>
+                
+                <div id="viewer-tab" class="tab-content active">
+                    <iframe class="pdf-viewer" src="https://mozilla.github.io/pdf.js/web/viewer.html?file=../../../pdf/{pdf_filename}" width="100%" height="800px"></iframe>
+                </div>
+                
+                <div id="text-tab" class="tab-content">
+                    <div class="text-content">
+                        <pre>{pdf_text}</pre>
+                    </div>
+                </div>
+                
+                <div style="text-align: center; margin-top: 20px;">
+                    <a href="../pdf/{pdf_filename}" download style="display: inline-block; padding: 10px 20px; background-color: #e10600; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">Download Original PDF</a>
+                </div>
             </div>
             
             <footer>
                 <p>Converted from PDF to HTML for easier viewing. Original document from FIA.com</p>
             </footer>
+            
+            <script>
+                function switchTab(tabName) {{
+                    // Hide all tabs
+                    document.querySelectorAll('.tab-content').forEach(tab => {{
+                        tab.classList.remove('active');
+                    }});
+                    
+                    // Show selected tab
+                    document.getElementById(tabName + '-tab').classList.add('active');
+                    
+                    // Update tab buttons
+                    document.querySelectorAll('.tab').forEach(tab => {{
+                        tab.classList.remove('active');
+                    }});
+                    
+                    // Find the clicked tab button and make it active
+                    document.querySelector(`.tab[onclick="switchTab('${{tabName}}')"]`).classList.add('active');
+                }}
+            </script>
         </body>
         </html>
         """
@@ -222,6 +299,7 @@ def convert_pdf_to_html(pdf_path, html_path):
                     margin: 20px auto;
                     border: 1px solid #ddd;
                     border-radius: 5px;
+                    height: 800px;
                 }}
                 .pdf-link {{
                     display: inline-block;
@@ -238,9 +316,9 @@ def convert_pdf_to_html(pdf_path, html_path):
         <body>
             <h1>{os.path.basename(pdf_path).replace('_', ' ').replace('.pdf', '').title()}</h1>
             <div class="pdf-container">
-                <iframe src="../pdf/{os.path.basename(pdf_path)}" width="100%" height="600px"></iframe>
+                <iframe src="https://mozilla.github.io/pdf.js/web/viewer.html?file=../../../pdf/{os.path.basename(pdf_path)}" width="100%" height="100%"></iframe>
             </div>
-            <p><a class="pdf-link" href="../pdf/{os.path.basename(pdf_path)}" target="_blank">Open PDF in new tab</a></p>
+            <p><a class="pdf-link" href="../pdf/{os.path.basename(pdf_path)}" target="_blank">Download PDF</a></p>
         </body>
         </html>
         """
