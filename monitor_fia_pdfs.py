@@ -144,6 +144,134 @@ def stop_grobid_service(process):
         process.terminate()
         process.wait()
         logger.info("GROBID service stopped")
+def convert_pdf_to_html_fallback(pdf_path, html_path):
+    """Fallback method to convert PDF to HTML using pdfminer.six."""
+    try:
+        logger.info(f"Using fallback PDF conversion method for {pdf_path}")
+        
+        # Install pdfminer.six if not already installed
+        try:
+            import pdfminer
+        except ImportError:
+            subprocess.run(["pip", "install", "pdfminer.six"], check=True)
+        
+        from pdfminer.high_level import extract_text_to_fp
+        from pdfminer.layout import LAParams
+        from io import StringIO
+        
+        # Extract text from PDF
+        output = StringIO()
+        with open(pdf_path, 'rb') as pdf_file:
+            extract_text_to_fp(pdf_file, output, laparams=LAParams(), output_type='html', codec=None)
+        
+        html_text = output.getvalue()
+        
+        # Enhance the HTML with better styling
+        pdf_filename = os.path.basename(pdf_path)
+        enhanced_html = f"""
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>{pdf_filename}</title>
+            <style>
+                body {{
+                    font-family: Arial, sans-serif;
+                    line-height: 1.6;
+                    max-width: 1000px;
+                    margin: 0 auto;
+                    padding: 20px;
+                }}
+                h1 {{
+                    color: #333;
+                    text-align: center;
+                }}
+                table {{
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin: 20px 0;
+                }}
+                th, td {{
+                    border: 1px solid #ddd;
+                    padding: 8px;
+                    text-align: left;
+                }}
+                th {{
+                    background-color: #f2f2f2;
+                }}
+                pre {{
+                    white-space: pre-wrap;
+                    font-family: monospace;
+                    background-color: #f5f5f5;
+                    padding: 10px;
+                    border-radius: 5px;
+                    overflow-x: auto;
+                }}
+                .document-title {{
+                    font-size: 24px;
+                    font-weight: bold;
+                    margin-bottom: 20px;
+                    text-align: center;
+                }}
+                .race-info {{
+                    margin-bottom: 20px;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="document-title">{pdf_filename.replace('_', ' ').replace('.pdf', '').title()}</div>
+            <div class="content">
+                {html_text}
+            </div>
+        </body>
+        </html>
+        """
+        
+        # Write enhanced HTML to file
+        with open(html_path, 'w', encoding='utf-8') as f:
+            f.write(enhanced_html)
+        
+        return True
+    except Exception as e:
+        logger.error(f"Error in fallback PDF conversion: {e}")
+        
+        # Last resort: create a simple HTML with a link to the PDF
+        simple_html = f"""
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>{os.path.basename(pdf_path)}</title>
+            <style>
+                body {{
+                    font-family: Arial, sans-serif;
+                    text-align: center;
+                    padding: 50px;
+                }}
+                .pdf-container {{
+                    margin: 20px auto;
+                    max-width: 800px;
+                }}
+            </style>
+        </head>
+        <body>
+            <h1>{os.path.basename(pdf_path).replace('_', ' ').replace('.pdf', '').title()}</h1>
+            <p>The PDF could not be converted to HTML. You can view the original PDF below:</p>
+            <div class="pdf-container">
+                <iframe src="../pdf/{os.path.basename(pdf_path)}" width="100%" height="600px"></iframe>
+            </div>
+            <p><a href="../pdf/{os.path.basename(pdf_path)}" target="_blank">Open PDF in new tab</a></p>
+        </body>
+        </html>
+        """
+        
+        with open(html_path, 'w', encoding='utf-8') as f:
+            f.write(simple_html)
+        
+        return True
+
 
 def convert_pdf_to_html_with_grobid(pdf_path, html_path):
     """Convert a PDF file to HTML using GROBID."""
@@ -155,13 +283,19 @@ def convert_pdf_to_html_with_grobid(pdf_path, html_path):
         
         if response.status_code != 200:
             logger.error(f"GROBID processing failed with status code {response.status_code}")
-            return False
+            # Fall back to direct PDF rendering if GROBID fails
+            return convert_pdf_to_html_fallback(pdf_path, html_path)
         
         # Parse the TEI XML response
         tei_xml = response.text
         
         # Convert TEI XML to HTML
         html_content = tei_to_html(tei_xml, os.path.basename(pdf_path))
+        
+        # Check if the conversion produced meaningful content
+        if "Error Processing Document" in html_content or len(html_content.strip()) < 500:
+            logger.warning(f"GROBID produced insufficient content, using fallback method for {pdf_path}")
+            return convert_pdf_to_html_fallback(pdf_path, html_path)
         
         # Write HTML to file
         with open(html_path, 'w', encoding='utf-8') as f:
@@ -170,7 +304,7 @@ def convert_pdf_to_html_with_grobid(pdf_path, html_path):
         return True
     except Exception as e:
         logger.error(f"Error converting PDF to HTML with GROBID: {e}")
-        return False
+        return convert_pdf_to_html_fallback(pdf_path, html_path)
 
 def tei_to_html(tei_xml, pdf_name):
     """Convert TEI XML to HTML."""
