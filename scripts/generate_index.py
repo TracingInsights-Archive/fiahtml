@@ -170,3 +170,8 @@ if __name__ == "__main__":
 
     index_path = create_root_index(output_dir)
     print(f"Created index page at {index_path}")
+    # Create a .nojekyll file to disable Jekyll processing
+    nojekyll_path = os.path.join(output_dir, ".nojekyll")
+    with open(nojekyll_path, "w") as f:
+        pass  # Create an empty file
+    print(f"Created .nojekyll file at {nojekyll_path}")

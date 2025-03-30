@@ -217,8 +217,15 @@ def convert_pdfs():
 
     # Create a root index.html file for GitHub Pages
     create_root_index(OUTPUT_DIR)
+    
+    # Create a .nojekyll file to disable Jekyll processing on GitHub Pages
+    nojekyll_path = os.path.join(OUTPUT_DIR, ".nojekyll")
+    with open(nojekyll_path, "w") as f:
+        pass  # Create an empty file
+    print(f"Created .nojekyll file at {nojekyll_path}")
 
     return converted_pdfs
+
 
 def create_index_page(converted_pdfs, output_dir):
     """Create an index.html page that lists all converted PDFs"""

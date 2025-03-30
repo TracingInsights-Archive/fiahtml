@@ -50,6 +50,12 @@ jobs:
       - name: Convert PDFs to HTML using GROBID
         run: python scripts/convert.py
 
+      - name: Generate index page
+        run: python scripts/generate_index.py
+
+      - name: Create .nojekyll file
+        run: touch docs/.nojekyll
+
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
