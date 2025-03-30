@@ -305,8 +305,8 @@ def create_root_index(output_dir):
     # Sort by date (newest first)
     html_files.sort(key=lambda x: x['date'], reverse=True)
 
-    # HTML template with improved styling - note the double curly braces for CSS
-    html_content = """<!DOCTYPE html>
+    # HTML template with improved styling - properly escaped curly braces for CSS
+    html_template = """<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -410,7 +410,7 @@ def create_root_index(output_dir):
         content = '    <div class="no-documents">No documents available yet.</div>'
 
     # Fill in the template
-    html_content = html_content.format(
+    html_content = html_template.format(
         date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         content=content
     )
