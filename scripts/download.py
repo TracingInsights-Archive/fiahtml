@@ -48,6 +48,7 @@ def download_pdf(pdf_info):
             else:
                 print(f"Failed to download {url} after {max_retries} attempts")
                 return None
+                
 
 def download_new_pdfs():
     """Download all new PDFs"""

@@ -405,6 +405,7 @@ def create_root_index(output_dir):
 </body>
 </html>
 """
+
     if html_files:
         # Generate list items for each HTML file
         items = []
